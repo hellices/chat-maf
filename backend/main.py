@@ -4,12 +4,12 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from agent.chat_agent import call_agent, AgentTemplate
+from agent.chat_agent import call_agent
 
 
 class ChatRequest(BaseModel):
     message: str
-    template: str = "helpful"
+    instruction: str = "You are a helpful AI assistant."
 
 
 app = FastAPI()
@@ -30,17 +30,8 @@ async def read_root():
 
 @app.post("/chat")
 async def chat(request: ChatRequest):
-    template_map = {
-        "funny": AgentTemplate.FUNNY_BOT,
-        "helpful": AgentTemplate.HELPFUL_ASSISTANT,
-        "code_reviewer": AgentTemplate.CODE_REVIEWER,
-        "translator": AgentTemplate.TRANSLATOR,
-    }
-
-    instructions = template_map.get(request.template, AgentTemplate.HELPFUL_ASSISTANT)
-
     async def generate():
-        async for chunk in call_agent(request.message, instructions):
+        async for chunk in call_agent(request.message, request.instruction):
             yield f"data: {chunk}\n\n"
 
     return StreamingResponse(generate(), media_type="text/plain")
