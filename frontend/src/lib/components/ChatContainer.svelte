@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { tick } from 'svelte';
 	import { messages, isLoading } from '$lib/stores/chat';
 	import ChatMessage from './ChatMessage.svelte';
 
@@ -11,9 +11,11 @@
 		}
 	}
 
-	$: if ($messages.length > 0) {
-		tick().then(scrollToBottom);
-	}
+	$effect(() => {
+		if ($messages.length > 0) {
+			tick().then(scrollToBottom);
+		}
+	});
 </script>
 
 <div

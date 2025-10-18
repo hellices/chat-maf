@@ -9,68 +9,79 @@ export const customInstruction: Writable<string> = writable('');
 
 let abortController: AbortController | null = null;
 
-export const chatActions = {
-	async sendMessage(message: string, instruction: string): Promise<void> {
-		if (!message.trim() || get(isLoading)) return;
+async function streamResponse(endpoint: string, body: object): Promise<void> {
+	if (get(isLoading)) return;
 
-		isLoading.set(true);
-		currentMessage.set('');
+	isLoading.set(true);
+	currentMessage.set('');
+	abortController = new AbortController();
+
+	try {
+		const response = await fetch(`${PUBLIC_API_BASE_URL}${endpoint}`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(body),
+			signal: abortController.signal
+		});
+
+		if (!response.ok) throw new Error('Failed to get response');
+
+		const reader = response.body?.getReader();
+		const decoder = new TextDecoder();
+
+		if (reader) {
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) break;
+
+				const chunk = decoder.decode(value, { stream: true });
+				
+				if (chunk) {
+					messages.update(msgs => {
+						const updated = [...msgs];
+						updated[updated.length - 1].content += chunk;
+						return updated;
+					});
+				}
+			}
+		}
+	} catch (error) {
+		if (error instanceof Error && error.name === 'AbortError') return;
 		
+		messages.update(msgs => {
+			const updated = [...msgs];
+			updated[updated.length - 1].content = 'Error: Failed to get response from server';
+			return updated;
+		});
+	} finally {
+		isLoading.set(false);
+		abortController = null;
+	}
+}
+
+export const chatActions = {
+	async sendInstructionMessage(message: string, instruction: string): Promise<void> {
+		if (!message.trim()) return;
+
 		messages.update(msgs => [
 			...msgs,
 			{ role: 'user', content: message.trim() },
 			{ role: 'assistant', content: '' }
 		]);
 
-		abortController = new AbortController();
+		await streamResponse('/instruction', { message, instruction });
+	},
 
-		try {
-			const response = await fetch(`${PUBLIC_API_BASE_URL}/chat`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ message, instruction }),
-				signal: abortController.signal
-			});
+	async sendWebsiteAssistantMessage(message: string, url: string): Promise<void> {
+		if (!message.trim()) return;
 
-			if (!response.ok) throw new Error('Failed to get response');
+		messages.update(msgs => [
+			...msgs,
+			{ role: 'user', content: message.trim() },
+			{ role: 'assistant', content: '' }
+		]);
 
-			const reader = response.body?.getReader();
-			const decoder = new TextDecoder();
-
-			if (reader) {
-				while (true) {
-					const { done, value } = await reader.read();
-					if (done) break;
-
-					const chunk = decoder.decode(value);
-					const lines = chunk.split('\n');
-
-					for (const line of lines) {
-						if (line.startsWith('data: ')) {
-							const data = line.slice(6);
-							if (data.trim()) {
-								messages.update(msgs => {
-									const updated = [...msgs];
-									updated[updated.length - 1].content += data;
-									return updated;
-								});
-							}
-						}
-					}
-				}
-			}
-		} catch (error) {
-			if (error instanceof Error && error.name === 'AbortError') return;
-			
-			messages.update(msgs => {
-				const updated = [...msgs];
-				updated[updated.length - 1].content = 'Error: Failed to get response from server';
-				return updated;
-			});
-		} finally {
-			isLoading.set(false);
-			abortController = null;
-		}
+		await streamResponse('/website-assistant', { message, url });
 	},
 
 	interrupt(): void {

@@ -8,6 +8,10 @@ dependencies = [
     "agent-framework>=1.0.0b251016",
     "fastapi[standard]>=0.119.0",
     "uvicorn>=0.37.0",
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
+    "markdownify>=0.11.6",
+    "playwright>=1.40.0",
 ]
 
 [tool.uv]

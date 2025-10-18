@@ -3,23 +3,22 @@ from azure.identity import AzureCliCredential
 from typing import Optional
 
 
-async def call_agent(text: str, instructions: Optional[str] = None):
+async def run_instruction_agent(text: str, instructions: Optional[str] = None):
+    """Run agent with custom instructions for testing different AI behaviors"""
     if instructions is None:
         instructions = "You are a helpful AI assistant."
 
     agent = AzureOpenAIResponsesClient(
         credential=AzureCliCredential(),
     ).create_agent(
-        name="chat agent",
         instructions=instructions,
-        streaming=True,
     )
 
     async for chunk in agent.run_stream(text):
-        yield chunk
+        yield chunk.text if chunk.text else ""
 
 
-class AgentTemplate:
+class InstructionTemplate:
     FUNNY_BOT = "You are a funny bot that tells jokes and makes people laugh."
     HELPFUL_ASSISTANT = (
         "You are a helpful AI assistant that provides accurate and useful information."

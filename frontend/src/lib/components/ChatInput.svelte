@@ -1,16 +1,17 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
 	import { currentMessage, isLoading } from '$lib/stores/chat';
 
-	const dispatch = createEventDispatcher<{
-		submit: void;
-		interrupt: void;
-	}>();
+	interface Props {
+		onsubmit?: () => void;
+		oninterrupt?: () => void;
+	}
+
+	let { onsubmit, oninterrupt }: Props = $props();
 
 	function handleKeyPress(event: KeyboardEvent) {
 		if (event.key === 'Enter' && !event.shiftKey) {
 			event.preventDefault();
-			dispatch('submit');
+			onsubmit?.();
 		}
 	}
 </script>
@@ -20,14 +21,14 @@
 		<input
 			type="text"
 			bind:value={$currentMessage}
-			on:keypress={handleKeyPress}
+			onkeypress={handleKeyPress}
 			placeholder="Type your message..."
 			disabled={$isLoading}
 			class="flex-1 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 disabled:bg-slate-50"
 		/>
 		{#if $isLoading}
 			<button
-				on:click={() => dispatch('interrupt')}
+				onclick={() => oninterrupt?.()}
 				class="px-6 py-3 bg-red-500 text-white rounded-xl hover:bg-red-600 focus:ring-2 focus:ring-red-300 flex items-center space-x-2"
 			>
 				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -38,7 +39,7 @@
 			</button>
 		{:else}
 			<button
-				on:click={() => dispatch('submit')}
+				onclick={() => onsubmit?.()}
 				disabled={!$currentMessage.trim()}
 				class="px-6 py-3 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-300 disabled:bg-slate-300"
 			>
