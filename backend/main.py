@@ -4,12 +4,18 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from agent.chat_agent import call_agent
+from agents.instruction_agent import run_instruction_agent
+from workflows.progressive_analysis import call_website_assistant
 
 
-class ChatRequest(BaseModel):
+class InstructionRequest(BaseModel):
     message: str
     instruction: str = "You are a helpful AI assistant."
+
+
+class WebsiteAssistantRequest(BaseModel):
+    message: str
+    url: str
 
 
 app = FastAPI()
@@ -28,10 +34,27 @@ async def read_root():
     return {"Hello": "World"}
 
 
-@app.post("/chat")
-async def chat(request: ChatRequest):
+@app.post("/instruction")
+async def instruction_playground(request: InstructionRequest):
     async def generate():
-        async for chunk in call_agent(request.message, request.instruction):
-            yield f"data: {chunk}\n\n"
+        async for chunk in run_instruction_agent(request.message, request.instruction):
+            yield chunk
 
     return StreamingResponse(generate(), media_type="text/plain")
+
+
+@app.post("/website-assistant")
+async def website_assistant(request: WebsiteAssistantRequest):
+    async def generate():
+        async for chunk in call_website_assistant(request.message, request.url):
+            yield chunk
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/plain",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )

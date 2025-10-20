@@ -1,7 +1,11 @@
 <script lang="ts">
-	export let selectedTemplate: string;
-	export let customInstruction: string = '';
-	export let showSettings: boolean = false;
+	interface Props {
+		selectedTemplate: string;
+		customInstruction?: string;
+		showSettings?: boolean;
+	}
+
+	let { selectedTemplate = $bindable(), customInstruction = $bindable(''), showSettings = $bindable(false) }: Props = $props();
 
 	const templates = [
 		{ 
@@ -55,9 +59,11 @@
 		}
 	}
 
-	$: if (selectedTemplate) {
-		onTemplateChange();
-	}
+	$effect(() => {
+		if (selectedTemplate) {
+			onTemplateChange();
+		}
+	});
 </script>
 
 <div class="p-6 border-b border-slate-100">
@@ -67,7 +73,7 @@
 			<p class="text-sm text-slate-500">Real-time chat with AI agent</p>
 		</div>
 		<button
-			on:click={() => showSettings = !showSettings}
+			onclick={() => showSettings = !showSettings}
 			class="p-2 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600"
 			aria-label="Settings"
 		>
@@ -85,7 +91,7 @@
 				<select 
 					id="template-select"
 					bind:value={selectedTemplate}
-					on:change={onTemplateChange}
+					onchange={onTemplateChange}
 					class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-300"
 				>
 					{#each templates as template}

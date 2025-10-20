@@ -5,12 +5,12 @@
 	import ChatContainer from '$lib/components/ChatContainer.svelte';
 	import ChatInput from '$lib/components/ChatInput.svelte';
 
-	let selectedTemplate = 'funny';
-	let showSettings = false;
-	let chatContainer: ChatContainer;
+	let selectedTemplate = $state('funny');
+	let showSettings = $state(false);
+	let chatContainer = $state<ChatContainer>();
 
 	async function handleSubmit() {
-		await chatActions.sendMessage($currentMessage || '', $customInstruction);
+		await chatActions.sendInstructionMessage($currentMessage || '', $customInstruction);
 		await tick();
 		chatContainer?.scrollToBottom();
 	}
@@ -21,7 +21,7 @@
 </script>
 
 <svelte:head>
-	<title>Chat Stream</title>
+	<title>Instruction Playground</title>
 </svelte:head>
 
 <div class="max-w-4xl mx-auto h-[calc(100vh-200px)] flex flex-col">
@@ -30,6 +30,6 @@
 		
 		<ChatContainer bind:this={chatContainer} />
 		
-		<ChatInput on:submit={handleSubmit} on:interrupt={handleInterrupt} />
+		<ChatInput onsubmit={handleSubmit} oninterrupt={handleInterrupt} />
 	</div>
 </div>

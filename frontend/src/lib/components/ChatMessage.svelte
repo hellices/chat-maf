@@ -1,51 +1,76 @@
 <script lang="ts">
 	import type { Message } from '$lib/types';
 
-	export let message: Message;
-	export let isLoading: boolean = false;
+	interface Props {
+		message: Message;
+		isLoading?: boolean;
+		isThinking?: boolean;
+	}
+
+	let { message, isLoading = false, isThinking = false }: Props = $props();
 </script>
 
-<style>
-	.thinking-dot {
-		animation: thinking 1.2s ease-in-out infinite;
-	}
-	
-	.thinking-dot:nth-child(1) { animation-delay: 0s; }
-	.thinking-dot:nth-child(2) { animation-delay: 0.2s; }
-	.thinking-dot:nth-child(3) { animation-delay: 0.4s; }
-	
-	@keyframes thinking {
-		0%, 60%, 100% {
-			transform: scale(0.8);
-			opacity: 0.3;
-		}
-		30% {
-			transform: scale(1.2);
-			opacity: 1;
-		}
-	}
-</style>
 
-<div class="flex {message.role === 'user' ? 'justify-end' : 'justify-start'}">
-	<div class="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl {message.role === 'user' 
+
+<div class="flex {message.role === 'user' ? 'justify-end' : 'justify-start'} mb-3">
+	<div class="max-w-[28rem] px-3 py-2 rounded-2xl {message.role === 'user' 
 		? 'bg-indigo-500 text-white' 
-		: 'bg-slate-100 text-slate-800'}">
+		: 'bg-slate-50 text-slate-800 border border-slate-200'}">
 		<div class="text-xs font-medium mb-1 {message.role === 'user' ? 'text-indigo-100' : 'text-slate-500'}">
 			{message.role === 'user' ? 'You' : 'Assistant'}
 		</div>
-		<div class="whitespace-pre-wrap break-words">
+		<div class="break-words text-sm leading-relaxed">
 			{#if isLoading && !message.content}
 				<div class="flex items-center space-x-2 text-slate-500">
 					<div class="flex space-x-1">
-						<div class="w-2 h-2 bg-indigo-400 rounded-full thinking-dot"></div>
-						<div class="w-2 h-2 bg-indigo-400 rounded-full thinking-dot"></div>
-						<div class="w-2 h-2 bg-indigo-400 rounded-full thinking-dot"></div>
+						<div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0s;"></div>
+						<div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.1s;"></div>
+						<div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.2s;"></div>
 					</div>
-					<span class="text-sm">typing...</span>
+					<span class="text-xs">typing...</span>
+				</div>
+			{:else if message.role === 'assistant'}
+				<div class="formatted-message" style="white-space: pre-wrap !important; line-height: 1.6 !important;">
+					{message.content}
+					{#if isThinking && isLoading}
+						<span class="inline-flex items-center ml-2 text-slate-400 text-xs italic">
+							<svg class="w-3 h-3 mr-1 animate-spin" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							thinking...
+						</span>
+					{/if}
 				</div>
 			{:else}
-				{message.content}
+				<div style="white-space: pre-wrap !important; line-height: 1.6 !important;">{message.content}</div>
 			{/if}
 		</div>
 	</div>
 </div>
+
+<style>
+	:global(.formatted-message) {
+		white-space: pre-wrap !important;
+		word-wrap: break-word !important;
+		overflow-wrap: break-word !important;
+	}
+	
+	:global(.formatted-message p) {
+		margin-bottom: 0.75rem;
+	}
+	
+	:global(.formatted-message p:last-child) {
+		margin-bottom: 0;
+	}
+	
+	:global(.formatted-message strong) {
+		font-weight: 600;
+		color: rgb(15 23 42); /* slate-900 */
+	}
+	
+	:global(.formatted-message em) {
+		font-style: italic;
+		color: rgb(51 65 85); /* slate-700 */
+	}
+</style>

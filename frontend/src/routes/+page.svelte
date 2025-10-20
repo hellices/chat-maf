@@ -1,38 +1,46 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	let routes = $state<Array<{path: string, name: string, description: string}>>([]);
 
-	let routes: Array<{path: string, name: string, description: string}> = $state([]);
+	$effect(() => {
+		async function loadRoutes() {
+			const modules = import.meta.glob('./**/+page.svelte');
+			const routePaths = Object.keys(modules);
+			
+			routes = routePaths
+				.map(path => {
+					const routePath = path
+						.replace('./+page.svelte', '/')
+						.replace('./+page.svelte', '/')
+						.replace(/\/\+page\.svelte$/, '')
+						.replace(/^\./, '') || '/';
+					
+					let name = '';
+					let description = '';
+					
+					if (routePath === '/') {
+						name = 'Home';
+						description = 'The main landing page';
+					} else if (routePath === '/instruction-playground') {
+						name = 'Instruction Playground';
+						description = 'Test different AI instructions and behaviors';
+					} else if (routePath === '/website-assistant') {
+						name = 'Website Assistant';
+						description = 'Interactive website analysis with iframe and chat';
+					} else {
+						name = routePath
+							.split('/')
+							.filter(Boolean)
+							.map(segment => segment.charAt(0).toUpperCase() + segment.slice(1))
+							.join(' ');
+						description = `${name} page`;
+					}
+					
+					return { path: routePath, name, description };
+				})
+				.sort((a, b) => a.path.localeCompare(b.path));
+		}
 
-	onMount(async () => {
-		const modules = import.meta.glob('./**/+page.svelte');
-		const routePaths = Object.keys(modules);
-		
-		routes = routePaths
-			.map(path => {
-				const routePath = path
-					.replace('./+page.svelte', '/')
-					.replace('./+page.svelte', '/')
-					.replace(/\/\+page\.svelte$/, '')
-					.replace(/^\./, '') || '/';
-				
-				let name = '';
-				let description = '';
-				
-				if (routePath === '/') {
-					name = 'Home';
-					description = 'The main landing page ';
-				} else {
-					name = routePath
-						.split('/')
-						.filter(Boolean)
-						.map(segment => segment.charAt(0).toUpperCase() + segment.slice(1))
-						.join(' ');
-					description = `${name} `;
-				}
-				
-				return { path: routePath, name, description };
-			})
-			.sort((a, b) => a.path.localeCompare(b.path));
+		loadRoutes();
 	});
 </script>
 
