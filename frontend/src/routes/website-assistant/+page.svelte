@@ -9,6 +9,7 @@
 	let showChat = $state(false);
 	let iframeElement: HTMLIFrameElement;
 	let chatContainer = $state<ChatContainer>();
+	let showUrlHint = $state(false); // Show hint when iframe loads (navigation detected)
 	
 	function loadIframe() {
 		if (inputUrl.trim()) {
@@ -16,6 +17,19 @@
 				inputUrl = 'https://' + inputUrl;
 			}
 			iframeUrl = inputUrl;
+			showUrlHint = false;
+			iframeLoadCount = 0; // Reset counter
+		}
+	}
+	
+	let iframeLoadCount = $state(0);
+	
+	function onIframeLoad() {
+		iframeLoadCount++;
+		
+		// Show hint after initial load - user should update URL if they navigate
+		if (iframeLoadCount > 1) {
+			showUrlHint = true;
 		}
 	}
 	
@@ -24,10 +38,12 @@
 	}
 	
 	async function handleSubmit() {
-		// Send URL directly to backend for analysis
-		await chatActions.sendWebsiteAssistantMessage($currentMessage || '', iframeUrl);
+		// Use inputUrl as the current URL (user may have updated it)
+		const urlToAnalyze = inputUrl || iframeUrl;
+		await chatActions.sendWebsiteAssistantMessage($currentMessage || '', urlToAnalyze);
 		await tick();
 		chatContainer?.scrollToBottom();
+		showUrlHint = false;
 	}
 
 	function handleInterrupt() {
@@ -48,6 +64,8 @@
 			window.removeEventListener('keydown', handleKeyDown);
 		};
 	});
+	
+
 </script>
 
 <svelte:head>
@@ -56,6 +74,26 @@
 
 <div class="h-screen flex flex-col bg-gray-100">
 	<div class="bg-white shadow-sm border-b border-gray-200 p-4 flex-shrink-0">
+		{#if showUrlHint}
+			<div class="max-w-4xl mx-auto mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-3 text-sm">
+				<svg class="w-5 h-5 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+				</svg>
+				<div class="flex-1 text-blue-800">
+					<strong>페이지가 이동되었습니다!</strong>
+					<p class="mt-1 text-blue-700">보안 정책(CORS)으로 인해 자동으로 URL을 감지할 수 없습니다. 위 URL 필드에 현재 페이지 주소를 직접 입력해주세요.</p>
+				</div>
+				<button
+					onclick={() => showUrlHint = false}
+					class="text-blue-600 hover:text-blue-800"
+					aria-label="Close notification"
+				>
+					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+					</svg>
+				</button>
+			</div>
+		{/if}
 		<div class="max-w-4xl mx-auto flex gap-4 items-center">
 			<label for="url-input" class="text-sm font-medium text-gray-700 flex-shrink-0">
 				Website URL:
@@ -67,6 +105,7 @@
 				placeholder="Try: https://example.com, https://httpbin.org, or other sites"
 				class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				onkeydown={(e) => e.key === 'Enter' && loadIframe()}
+				oninput={() => showUrlHint = false}
 			/>
 			<button
 				onclick={loadIframe}
@@ -92,14 +131,20 @@
 			class="w-full h-[calc(100vh-9rem)] border-0"
 			sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
 			style="min-width: 1200px;"
+			onload={onIframeLoad}
 		></iframe>
 		
 		{#if showChat}
 			<div class="fixed bottom-4 left-4 w-[28rem] h-[32rem] bg-white rounded-xl shadow-2xl border border-slate-200 flex flex-col z-50 max-h-[calc(100vh-2rem)]">
 				<div class="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
-					<div>
+					<div class="flex-1 min-w-0">
 						<h3 class="font-semibold text-slate-800 text-sm">Website Assistant</h3>
-						<p class="text-xs text-slate-500">Analyzing: {new URL(iframeUrl).hostname}</p>
+						<p class="text-xs text-slate-500 truncate" title={inputUrl}>
+							분석 중: {new URL(inputUrl).hostname}
+						</p>
+						{#if showUrlHint}
+							<p class="text-xs text-blue-600 mt-1">💡 페이지 이동 시 URL을 업데이트하세요</p>
+						{/if}
 					</div>
 					<button
 						onclick={toggleChat}
@@ -135,7 +180,6 @@
 	:global(body) {
 		margin: 0;
 		padding: 0;
-		overflow: hidden;
 	}
 	
 	iframe {

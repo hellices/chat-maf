@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from agent.instruction_agent import run_instruction_agent
+from agents.instruction_agent import run_instruction_agent
 from workflows.progressive_analysis import call_website_assistant
 
 

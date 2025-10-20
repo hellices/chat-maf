@@ -2,7 +2,7 @@ import os
 import re
 from typing import AsyncGenerator
 
-from agent.website_assistant_agent import WebsiteAssistantAgent
+from agents.website_assistant_agent import WebsiteAssistantAgent
 from models.analysis_request import AnalysisRequest
 from tools.progressive_data_sources import fetch_web_content, fetch_playwright_content
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { messages, isLoading } from '$lib/stores/chat';
+	import { messages, isLoading, isThinking } from '$lib/stores/chat';
 	import ChatMessage from './ChatMessage.svelte';
 
 	let messageContainer: HTMLElement;
@@ -23,6 +23,10 @@
 	class="flex-1 overflow-y-auto p-6 space-y-4"
 >
 	{#each $messages as message, index}
-		<ChatMessage {message} isLoading={$isLoading && index === $messages.length - 1 && message.role === 'assistant' && !message.content} />
+		<ChatMessage 
+			{message} 
+			isLoading={$isLoading && index === $messages.length - 1 && message.role === 'assistant'} 
+			isThinking={$isThinking && index === $messages.length - 1 && message.role === 'assistant'}
+		/>
 	{/each}
 </div>
