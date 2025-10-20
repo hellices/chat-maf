@@ -3,21 +3,6 @@ from azure.identity import AzureCliCredential
 from typing import Optional
 
 
-async def run_instruction_agent(text: str, instructions: Optional[str] = None):
-    """Run agent with custom instructions for testing different AI behaviors"""
-    if instructions is None:
-        instructions = "You are a helpful AI assistant. Be concise and direct."
-
-    agent = AzureOpenAIResponsesClient(
-        credential=AzureCliCredential(),
-    ).create_agent(
-        instructions=instructions,
-    )
-
-    async for chunk in agent.run_stream(text):
-        yield chunk.text if chunk.text else ""
-
-
 class InstructionTemplate:
     FUNNY_BOT = "You are a funny bot. Keep responses light and humorous."
     HELPFUL_ASSISTANT = "You are a helpful AI assistant. Be concise and accurate."
@@ -35,3 +20,28 @@ class InstructionTemplate:
         if constraints:
             template += f" {constraints}"
         return template
+
+
+def create_agent(instructions: Optional[str] = None):
+    """Create an instruction agent with custom instructions."""
+    if instructions is None:
+        instructions = InstructionTemplate.FUNNY_BOT
+
+    return AzureOpenAIResponsesClient(
+        credential=AzureCliCredential(),
+    ).create_agent(
+        instructions=instructions,
+        name="InstructionAgent",
+    )
+
+
+# Create default agent for DevUI auto-discovery
+agent = create_agent()
+
+
+async def instruction_agent(text: str, instructions: Optional[str] = None):
+    """Run agent with custom instructions for testing different AI behaviors"""
+    custom_agent = create_agent(instructions)
+
+    async for chunk in custom_agent.run_stream(text):
+        yield chunk.text if chunk.text else ""

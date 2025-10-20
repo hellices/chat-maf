@@ -25,6 +25,18 @@ Progressive website analysis tool with iframe viewer and intelligent Q&A.
 
 ## Quick Start
 
+### Prerequisites
+
+**For Observability (Optional):**
+Deploy Aspire Dashboard to AKS for OpenTelemetry traces:
+```bash
+kubectl apply -f aspire-dashboard.yaml
+# Wait for external IP
+kubectl get service aspire-dashboard --watch
+```
+
+### Option 1: Full-Stack Application (FastAPI + SvelteKit)
+
 **Backend:**
 ```bash
 cd backend
@@ -39,6 +51,24 @@ npm run dev
 ```
 
 Visit `http://localhost:5173`
+
+### Option 2: DevUI (Agent Development & Testing)
+
+**Launch DevUI for agent development:**
+```bash
+cd backend
+uv run devui ./agents --port 8080
+```
+
+Visit `http://localhost:8080`
+
+**DevUI Features:**
+- Interactive agent testing without frontend
+- Real-time conversation debugging
+- Agent discovery and introspection
+- Multi-agent orchestration testing
+
+> **Note:** DevUI requires tools to be defined within `agent.py` files. See [DEVELOPMENT.md](DEVELOPMENT.md) for details on DevUI integration requirements.
 
 ---
 
