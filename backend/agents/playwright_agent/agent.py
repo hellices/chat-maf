@@ -1,45 +1,15 @@
-import asyncio
-import requests
+"""
+Playwright Agent - Dynamic JavaScript Content Fetcher
+
+Specialized agent that only uses fetch_playwright_content tool for dynamic content scraping.
+"""
+
+from agent_framework.azure import AzureOpenAIResponsesClient
+from azure.identity import AzureCliCredential
 from typing import Annotated
 from bs4 import BeautifulSoup
 
 from markdownify import markdownify as md
-
-
-async def fetch_web_content(
-    url: Annotated[str, "The URL of the website to fetch static HTML content from"],
-) -> Annotated[str, "Static HTML content in markdown format"]:
-    """Fetch static HTML content from a website and convert to markdown. Use this for standard websites."""
-    try:
-        loop = asyncio.get_event_loop()
-
-        def scrape():
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            }
-            response = requests.get(url, headers=headers, timeout=10)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.content, "html.parser")
-            for element in soup(["script", "style", "nav", "header", "footer"]):
-                element.decompose()
-
-            body = soup.find("body") or soup
-            markdown = md(str(body), heading_style="atx", bullets="-")
-
-            lines = [line for line in markdown.split("\n") if line.strip()]
-            content = "\n".join(lines)
-
-            if len(content) > 5000:
-                content = content[:5000] + "...\n[Truncated]"
-
-            return content
-
-        content = await loop.run_in_executor(None, scrape)
-        return f"Web Scraper Data:\n{content}"
-
-    except Exception as e:
-        return f"Web scraper error: {str(e)}"
 
 
 async def fetch_playwright_content(
@@ -90,3 +60,37 @@ async def fetch_playwright_content(
         return "Playwright not installed: pip install playwright && playwright install chromium"
     except Exception as e:
         return f"Playwright error: {str(e)}"
+
+
+def create_agent():
+    """Create a Playwright agent that fetches dynamic JavaScript-rendered content."""
+    client = AzureOpenAIResponsesClient(
+        credential=AzureCliCredential(),
+    )
+
+    return client.create_agent(
+        instructions="""You are a Playwright assistant specialized in dynamic JavaScript-rendered content.
+
+Your task:
+1. Use fetch_playwright_content to retrieve fully-rendered content including dynamic elements
+2. Analyze JavaScript-loaded content, lazy-loaded images, and interactive elements
+3. Provide a comprehensive analysis of the complete page
+4. Highlight any dynamic content that wasn't visible in static HTML
+
+Response format:
+- Provide detailed analysis since this is the final scraping attempt
+- Use **bold** for key findings and dynamic content
+- End with: [CONFIDENCE: XX] where XX is 0-100
+
+Confidence guidelines:
+- 61-75: Good content captured, some elements may be missing
+- 76-85: Comprehensive content with most dynamic elements
+- 86-95: Excellent coverage of all visible content
+- 96-100: Complete page analysis including all lazy-loaded content""",
+        name="PlaywrightAgent",
+        tools=[fetch_playwright_content],  # Only dynamic content scraping
+    )
+
+
+# Create default agent for DevUI auto-discovery
+agent = create_agent()

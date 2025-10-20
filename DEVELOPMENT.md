@@ -58,6 +58,13 @@ PUBLIC_API_BASE_URL=http://localhost:8000
 }
 ```
 
+## Agent Development with DevUI
+
+### DevUI Integration Requirements
+
+**IMPORTANT**: For agents to be properly discovered and work with DevUI, tools (functions) **MUST be defined inside the agent.py file** or imported directly within it.
+[related issue](https://github.com/microsoft/agent-framework/issues/1572)
+
 ## References
 
 - [Microsoft Agent Framework](https://docs.microsoft.com/agent-framework)

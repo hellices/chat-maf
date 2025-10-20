@@ -4,8 +4,8 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from agents.instruction_agent import run_instruction_agent
-from workflows.progressive_analysis import call_website_assistant
+from agents.instruction_agent.agent import instruction_agent
+from agents.website_assistant_workflow.workflow import call_website_assistant
 
 
 class InstructionRequest(BaseModel):
@@ -37,7 +37,7 @@ async def read_root():
 @app.post("/instruction")
 async def instruction_playground(request: InstructionRequest):
     async def generate():
-        async for chunk in run_instruction_agent(request.message, request.instruction):
+        async for chunk in instruction_agent(request.message, request.instruction):
             yield chunk
 
     return StreamingResponse(generate(), media_type="text/plain")
@@ -46,7 +46,7 @@ async def instruction_playground(request: InstructionRequest):
 @app.post("/website-assistant")
 async def website_assistant(request: WebsiteAssistantRequest):
     async def generate():
-        async for chunk in call_website_assistant(request.message, request.url):
+        async for chunk in call_website_assistant(request.url, request.message):
             yield chunk
 
     return StreamingResponse(
