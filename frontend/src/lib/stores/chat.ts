@@ -1,6 +1,7 @@
 import { writable, get, type Writable } from 'svelte/store';
 import { PUBLIC_API_BASE_URL } from '$env/static/public';
 import type { Message } from '../types';
+import { traceAsync, createSpan } from '$lib/trace-helpers';
 
 export const messages: Writable<Message[]> = writable([]);
 export const isLoading: Writable<boolean> = writable(false);
@@ -34,6 +35,11 @@ function resetThinkingTimer() {
 async function streamResponse(endpoint: string, body: object): Promise<void> {
 	if (get(isLoading)) return;
 
+	const span = createSpan('chat.streamResponse', {
+		endpoint,
+		bodySize: JSON.stringify(body).length
+	});
+
 	isLoading.set(true);
 	isThinking.set(false);
 	currentMessage.set('');
@@ -50,12 +56,19 @@ async function streamResponse(endpoint: string, body: object): Promise<void> {
 			signal: abortController.signal
 		});
 
-		if (!response.ok) throw new Error('Failed to get response');
+		if (!response.ok) {
+			span.setAttribute('error', true);
+			span.setAttribute('http.status_code', response.status);
+			throw new Error('Failed to get response');
+		}
+
+		span.setAttribute('http.status_code', response.status);
 
 		const reader = response.body?.getReader();
 		const decoder = new TextDecoder();
 
 		if (reader) {
+			let totalChunks = 0;
 			while (true) {
 				const { done, value } = await reader.read();
 				if (done) {
@@ -71,6 +84,7 @@ async function streamResponse(endpoint: string, body: object): Promise<void> {
 					break;
 				}
 
+				totalChunks++;
 				// The stream: true option ensures incomplete multibyte sequences
 				// are buffered and carried over to the next chunk
 				const chunk = decoder.decode(value, { stream: true });
@@ -89,9 +103,18 @@ async function streamResponse(endpoint: string, body: object): Promise<void> {
 					startThinkingTimer();
 				}
 			}
+			span.setAttribute('total_chunks', totalChunks);
 		}
+		span.end();
 	} catch (error) {
-		if (error instanceof Error && error.name === 'AbortError') return;
+		if (error instanceof Error && error.name === 'AbortError') {
+			span.setAttribute('aborted', true);
+			span.end();
+			return;
+		}
+		
+		span.recordException(error as Error);
+		span.end();
 		
 		messages.update(msgs => {
 			const updated = [...msgs];

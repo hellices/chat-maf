@@ -25,6 +25,16 @@ Progressive website analysis tool with iframe viewer and intelligent Q&A.
 
 ## Quick Start
 
+### Prerequisites
+
+**For Observability (Optional):**
+Deploy Aspire Dashboard to AKS for OpenTelemetry traces:
+```bash
+kubectl apply -f aspire-dashboard.yaml
+# Wait for external IP
+kubectl get service aspire-dashboard --watch
+```
+
 ### Option 1: Full-Stack Application (FastAPI + SvelteKit)
 
 **Backend:**
