@@ -4,7 +4,7 @@
 	import DatabaseERDiagram from '$lib/components/DatabaseERDiagram.svelte';
 
 	let message = $state('');
-	let messages = $state<Array<{ role: 'user' | 'assistant'; content: string; sql?: string; result?: any }>>([]);
+	let messages = $state<Array<{ role: 'user' | 'assistant'; content: string; sql?: string; result?: any; database?: string }>>([]);
 	let isLoading = $state(false);
 	let currentStep = $state('');
 	let chatContainerEl: HTMLDivElement;
@@ -165,7 +165,8 @@
 						role: 'assistant',
 						content: finalResult.natural_language_response || 'Query executed successfully.',
 						sql: finalResult.sql,
-						result: finalResult.execution_result
+						result: finalResult.execution_result,
+						database: finalResult.database
 					}
 				];
 				await scrollToBottom();
@@ -301,25 +302,23 @@
 			{#if messages.length === 0}
 				<!-- Welcome Message -->
 				<div class="flex items-center justify-center h-full">
-					<div class="text-center max-w-2xl">
+					<div class="text-center max-w-xl">
 						<div class="text-5xl mb-4">💬</div>
-						<h3 class="text-xl font-semibold text-slate-900 mb-2">
+						<h3 class="text-xl font-semibold text-slate-900 mb-3">
 							Welcome to NL2SQL Chat
 						</h3>
 						<p class="text-slate-600 mb-6">
 							Ask questions about your database in natural language
 						</p>
-						<div class="flex flex-wrap gap-2 justify-center">
-							{#each exampleQueries as query}
-								<button
-									onclick={() => useExample(query)}
-									class="px-3 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"
-									disabled={isLoading}
-								>
-									{query}
-								</button>
-							{/each}
-						</div>
+						<button
+							onclick={() => showInfoModal = true}
+							class="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors text-sm font-medium"
+						>
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+							Click here to learn how to use
+						</button>
 					</div>
 				</div>
 			{:else}
@@ -337,6 +336,15 @@
 								<div class="text-[15px] leading-relaxed">
 									<MarkdownRenderer content={msg.content} />
 								</div>
+								
+								{#if msg.database}
+									<div class="mt-2 text-xs text-slate-500 flex items-center gap-1">
+										<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+										</svg>
+										<span>Database: <span class="font-medium text-slate-700">{msg.database}</span></span>
+									</div>
+								{/if}
 								
 								{#if msg.sql}
 									<details class="mt-3 group">
@@ -450,7 +458,7 @@
 		onclick={() => showInfoModal = false}
 	>
 		<div 
-			class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full"
+			class="bg-white rounded-xl shadow-lg max-w-3xl w-full"
 			onclick={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
@@ -458,19 +466,12 @@
 			tabindex="-1"
 		>
 			<!-- Modal Header -->
-			<div class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-6 py-4 rounded-t-2xl">
+			<div class="bg-slate-50 border-b border-slate-200 px-6 py-4 rounded-t-xl">
 				<div class="flex items-center justify-between">
-					<div class="flex items-center gap-3">
-						<div class="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
-							<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-							</svg>
-						</div>
-						<h2 id="modal-title" class="text-xl font-bold">About NL2SQL Playground</h2>
-					</div>
+					<h2 id="modal-title" class="text-lg font-semibold text-slate-900">About NL2SQL Playground</h2>
 					<button
 						onclick={() => showInfoModal = false}
-						class="hover:bg-white/20 rounded-lg p-1.5 transition-colors"
+						class="text-slate-400 hover:text-slate-600 rounded-lg p-1.5 transition-colors"
 						aria-label="Close modal"
 					>
 						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -481,156 +482,101 @@
 			</div>
 
 			<!-- Modal Content -->
-			<div class="p-6 space-y-5">
+			<div class="p-6 space-y-4">
 				<!-- Introduction -->
-				<div class="flex items-start gap-3">
-					<div class="bg-blue-100 p-2 rounded-lg flex-shrink-0">
-						<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-						</svg>
-					</div>
-					<div class="flex-1">
-						<h3 class="font-semibold text-slate-900 mb-1">What is this?</h3>
-						<p class="text-slate-600 text-sm leading-relaxed">
-							An interactive playground for experimenting with Natural Language to SQL (NL2SQL) conversion 
-							using the <span class="font-semibold text-blue-600">Spider dataset</span>. Convert your questions 
-							in natural language into executable SQL queries.
-						</p>
-					</div>
-				</div>
-
-				<!-- Spider Dataset -->
-				<div class="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
-					<div class="flex items-start gap-3">
-						<div class="bg-purple-500 p-2 rounded-lg flex-shrink-0">
-							<svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-							</svg>
-						</div>
-						<div class="flex-1">
-							<h3 class="font-semibold text-purple-900 mb-1.5 flex items-center gap-2">
-								Spider Dataset
-								<a 
-									href="https://github.com/taoyds/spider" 
-									target="_blank" 
-									rel="noopener noreferrer"
-									class="inline-flex items-center gap-1 text-xs bg-purple-700 text-white px-2 py-0.5 rounded-full hover:bg-purple-800 transition-colors"
-								>
-									<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-										<path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-									</svg>
-									GitHub
-								</a>
-							</h3>
-							<p class="text-purple-800 text-sm leading-relaxed">
-								A large-scale text-to-SQL benchmark dataset with 200+ databases across diverse domains, 
-								10,181 questions, and 5,693 complex SQL queries. Perfect for training and evaluating NL2SQL systems.
-							</p>
-						</div>
-					</div>
-				</div>
-
-				<!-- How to Use - 2 columns layout -->
 				<div>
-					<div class="flex items-center gap-2 mb-3">
-						<div class="bg-green-100 p-2 rounded-lg">
-							<svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-							</svg>
-						</div>
-						<h3 class="font-semibold text-slate-900">How to Use</h3>
-					</div>
-					<div class="grid grid-cols-2 gap-4">
-						<div class="flex items-start gap-2 text-sm text-slate-600">
-							<span class="font-bold text-green-600 flex-shrink-0 bg-green-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
-							<span><span class="font-semibold text-slate-900">Select a database</span> from the left sidebar (click again to deselect)</span>
-						</div>
-						<div class="flex items-start gap-2 text-sm text-slate-600">
-							<span class="font-bold text-green-600 flex-shrink-0 bg-green-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span>
-							<span><span class="font-semibold text-slate-900">Click tables</span> in the schema diagram to view columns and select specific tables</span>
-						</div>
-						<div class="flex items-start gap-2 text-sm text-slate-600">
-							<span class="font-bold text-green-600 flex-shrink-0 bg-green-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">3</span>
-							<span><span class="font-semibold text-slate-900">Ask your question</span> in natural language - SQL will be generated automatically</span>
-						</div>
-						<div class="flex items-start gap-2 text-sm text-slate-600">
-							<span class="font-bold text-green-600 flex-shrink-0 bg-green-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">4</span>
-							<span><span class="font-semibold text-slate-900">View results</span> with generated SQL query and execution results</span>
+					<h3 class="font-semibold text-slate-900 mb-2">What is this?</h3>
+					<p class="text-slate-600 text-sm leading-relaxed">
+						An interactive playground for Natural Language to SQL (NL2SQL) conversion using the 
+						<a href="https://github.com/taoyds/spider" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">Spider dataset</a>. 
+						Convert your questions in natural language into executable SQL queries across 200+ diverse databases.
+					</p>
+				</div>
+
+				<!-- How to Use -->
+				<div>
+					<h3 class="font-semibold text-slate-900 mb-2">How to Use</h3>
+					<ol class="space-y-2 text-sm text-slate-600">
+						<li class="flex gap-2">
+							<span class="font-semibold text-slate-700 flex-shrink-0">1.</span>
+							<span><strong>Select a database</strong> from the left sidebar (optional but recommended for accuracy)</span>
+						</li>
+						<li class="flex gap-2">
+							<span class="font-semibold text-slate-700 flex-shrink-0">2.</span>
+							<span><strong>Optionally select specific tables</strong> by clicking them in the schema diagram below</span>
+						</li>
+						<li class="flex gap-2">
+							<span class="font-semibold text-slate-700 flex-shrink-0">3.</span>
+							<span><strong>Ask your question</strong> in natural language and get SQL + results</span>
+						</li>
+					</ol>
+				</div>
+
+				<!-- Writing Questions -->
+				<div>
+					<h3 class="font-semibold text-slate-900 mb-2">Writing Effective Questions</h3>
+					<div class="space-y-2 text-sm">
+						<p class="text-slate-600">Reference table and column names when asking questions:</p>
+						<div class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
+							<div>
+								<div class="text-xs font-medium text-slate-500 mb-1">✓ Good Examples</div>
+								<div class="space-y-1 text-slate-700">
+									<div>• "How many singers are there?"</div>
+									<div>• "List all stadium names with capacity over 50000"</div>
+									<div>• "What's the average age of singers from France?"</div>
+									<div>• "Show concerts in stadiums with highest capacity"</div>
+								</div>
+							</div>
+							<div class="pt-2 border-t border-slate-200">
+								<div class="text-xs font-medium text-slate-500 mb-1">✗ Avoid</div>
+								<div class="space-y-1 text-slate-700">
+									<div>• Vague questions: "Show me data" or "What do you have?"</div>
+									<div>• Questions about non-existent tables or columns</div>
+								</div>
+							</div>
 						</div>
 					</div>
 				</div>
 
-				<!-- Features & Tips - Combined in 2 columns -->
-				<div class="grid grid-cols-2 gap-4">
-					<!-- Features -->
-					<div class="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-200">
-						<h3 class="font-semibold text-blue-900 mb-2.5 flex items-center gap-2">
-							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+				<!-- Important Notes -->
+				<div>
+					<h3 class="font-semibold text-slate-900 mb-2">Important Notes</h3>
+					<ul class="space-y-1.5 text-sm text-slate-600">
+						<li class="flex items-start gap-2">
+							<svg class="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 							</svg>
-							Key Features
-						</h3>
-						<div class="space-y-1.5 text-sm">
-							<div class="flex items-center gap-2">
-								<svg class="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-								</svg>
-								<span class="text-blue-800">ERD-style schema visualization</span>
-							</div>
-							<div class="flex items-center gap-2">
-								<svg class="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-								</svg>
-								<span class="text-blue-800">Interactive table selection</span>
-							</div>
-							<div class="flex items-center gap-2">
-								<svg class="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-								</svg>
-								<span class="text-blue-800">Real-time SQL generation</span>
-							</div>
-							<div class="flex items-center gap-2">
-								<svg class="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-								</svg>
-								<span class="text-blue-800">Query execution & results</span>
-							</div>
-						</div>
-					</div>
-
-					<!-- Tips -->
-					<div class="bg-amber-50 rounded-xl p-4 border border-amber-200">
-						<h3 class="font-semibold text-amber-900 mb-2.5 flex items-center gap-2">
-							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+							<span><strong>Database selection is optional</strong> but helps improve accuracy by providing context</span>
+						</li>
+						<li class="flex items-start gap-2">
+							<svg class="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 							</svg>
-							💡 Pro Tips
-						</h3>
-						<ul class="space-y-1.5 text-sm text-amber-800">
-							<li class="flex items-start gap-1.5">
-								<span class="text-amber-600 flex-shrink-0">•</span>
-								<span>Select specific tables for more accurate SQL generation</span>
-							</li>
-							<li class="flex items-start gap-1.5">
-								<span class="text-amber-600 flex-shrink-0">•</span>
-								<span>The AI focuses on selected tables, especially useful for complex databases</span>
-							</li>
-							<li class="flex items-start gap-1.5">
-								<span class="text-amber-600 flex-shrink-0">•</span>
-								<span>Try example queries to see how it works</span>
-							</li>
-						</ul>
-					</div>
+							<span><strong>Table selection is also optional</strong> and useful for focusing on specific parts of large databases</span>
+						</li>
+						<li class="flex items-start gap-2">
+							<svg class="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+							<span>Without database selection, queries may be less accurate or fail</span>
+						</li>
+						<li class="flex items-start gap-2">
+							<svg class="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+							<span>Click on tables in the schema to see their columns and relationships</span>
+						</li>
+					</ul>
 				</div>
 			</div>
 
 			<!-- Modal Footer -->
-			<div class="border-t border-slate-200 px-6 py-4 bg-slate-50 rounded-b-2xl">
+			<div class="border-t border-slate-200 px-6 py-4 bg-slate-50 rounded-b-xl">
 				<button
 					onclick={() => showInfoModal = false}
-					class="w-full px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md"
+					class="w-full px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-medium transition-colors"
 				>
-					Got it! Let's start
+					Got it
 				</button>
 			</div>
 		</div>
