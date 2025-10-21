@@ -15,7 +15,7 @@ Interactive environment for testing different AI instruction prompts and behavio
 ### `/nl2sql`
 Natural language to SQL translation with interactive database explorer.
 
-![NL2SQL Demo](nl2sql_sample.gif)
+<img src="./static/nl2sql_sample.gif" alt="NL2SQL Demo" width="600">
 
 - Ask questions about databases in natural language
 - 6-step workflow: entity extraction → schema mapping → SQL generation → execution
