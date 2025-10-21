@@ -13,6 +13,7 @@ dependencies = [
     "markdownify>=0.11.6",
     "playwright>=1.40.0",
     "python-dotenv>=1.1.1",
+    "nltk>=3.9.2",
 ]
 
 [tool.uv]

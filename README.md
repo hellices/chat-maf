@@ -12,6 +12,19 @@ Interactive environment for testing different AI instruction prompts and behavio
 
 **API Endpoint:** `POST /instruction`
 
+### `/nl2sql`
+Natural language to SQL translation with interactive database explorer.
+
+![NL2SQL Demo](nl2sql_sample.gif)
+
+- Ask questions about databases in natural language
+- 6-step workflow: entity extraction → schema mapping → SQL generation → execution
+- Visual ER diagram with table relationships
+- Interactive database and table selection
+- Automatic error correction with retry logic
+
+**API Endpoint:** `POST /nl2sql`
+
 ### `/website-assistant`
 Progressive website analysis tool with iframe viewer and intelligent Q&A.
 - View and analyze websites in embedded iframe
@@ -26,6 +39,17 @@ Progressive website analysis tool with iframe viewer and intelligent Q&A.
 ## Quick Start
 
 ### Prerequisites
+
+**Spider Database Setup (Required for NL2SQL):**
+Download and setup the Spider dataset:
+```bash
+cd backend/database
+bash download_spider.sh  # Download dataset (95 MB)
+cd ..
+uv run python database/setup_spider.py      # Extract databases
+uv run python database/generate_m_schema.py # Generate metadata
+```
+This installs 166+ SQLite databases and generates M-Schema metadata for intelligent schema mapping.
 
 **For Observability (Optional):**
 Deploy Aspire Dashboard to AKS for OpenTelemetry traces:

@@ -1,0 +1,9 @@
+# Ignore Spider dataset files (large)
+spider/
+spider.zip
+
+# But keep the scripts and documentation
+!setup_spider.py
+!spider_utils.py
+!README.md
+!.gitignore
