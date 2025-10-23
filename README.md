@@ -43,8 +43,16 @@ Progressive website analysis tool with iframe viewer and intelligent Q&A.
 **Spider Database Setup (Required for NL2SQL):**
 Download and setup the Spider dataset:
 ```bash
-cd backend/database
-bash download_spider.sh  # Download dataset (95 MB)
+# Install gdown for Google Drive downloads
+cd backend
+uv pip install gdown
+
+# Download Spider dataset (206 MB)
+# If the file ID below doesn't work, get the latest link from: https://yale-lily.github.io/spider
+cd database
+uv run gdown 1403EGqzIDoHMdQF4c9Bkyl7dZLZ5Wt6J -O spider.zip
+
+# Extract databases and generate metadata
 cd ..
 uv run python database/setup_spider.py      # Extract databases
 uv run python database/generate_m_schema.py # Generate metadata
