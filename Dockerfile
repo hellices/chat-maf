@@ -32,19 +32,14 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv package manager
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.cargo/bin:${PATH}"
-
-# Copy backend files
+# Copy backend files first (needed for pyproject.toml)
 COPY backend/ ./backend/
 
 # Set working directory to backend
 WORKDIR /app/backend
 
-# Install Python dependencies using uv
-RUN uv pip install --system -r <(uv pip compile pyproject.toml) || \
-    uv pip install --system \
+# Install Python dependencies directly with pip from pyproject.toml
+RUN pip install --no-cache-dir \
     "agent-framework>=1.0.0b251016" \
     "fastapi[standard]>=0.119.0" \
     "uvicorn>=0.37.0" \
