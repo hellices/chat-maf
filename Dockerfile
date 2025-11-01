@@ -39,16 +39,7 @@ COPY backend/ ./backend/
 WORKDIR /app/backend
 
 # Install Python dependencies directly with pip from pyproject.toml
-RUN pip install --no-cache-dir \
-    "agent-framework>=1.0.0b251016" \
-    "fastapi[standard]>=0.119.0" \
-    "uvicorn>=0.37.0" \
-    "requests>=2.31.0" \
-    "beautifulsoup4>=4.12.0" \
-    "markdownify>=0.11.6" \
-    "playwright>=1.40.0" \
-    "python-dotenv>=1.1.1" \
-    "nltk>=3.9.2"
+RUN pip install --no-cache-dir .
 
 # Install Playwright browsers
 RUN playwright install chromium && \
