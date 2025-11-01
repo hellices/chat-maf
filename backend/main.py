@@ -5,12 +5,14 @@
 # Standard library imports
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 # Third-party imports
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from pydantic import BaseModel
 
@@ -266,3 +268,10 @@ async def nl2sql(request: NL2SQLRequest, req: Request):
             "Access-Control-Allow-Origin": "*",
         },
     )
+
+
+# Mount static files for frontend (if available) - must be last to not override API routes
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    # Mount static files - API routes are matched before mounts
+    app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
