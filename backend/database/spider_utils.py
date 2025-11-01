@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 
+from .sql_security import sanitize_sql
+
 
 @dataclass
 class DatabaseInfo:
@@ -112,24 +114,44 @@ class SpiderDatabase:
         )
 
     def execute_query(
-        self, db_name: str, query: str, max_rows: int = 100
+        self,
+        db_name: str,
+        query: str,
+        max_rows: int = 100,
+        timeout: float = 30.0,
+        validate_security: bool = True,
     ) -> Tuple[List[str], List[Tuple]]:
         """
-        Execute a SQL query on a database.
+        Execute a SQL query on a database with timeout and error classification.
 
         Args:
             db_name: Name of the database
             query: SQL query to execute
             max_rows: Maximum number of rows to return
+            timeout: Query timeout in seconds (default: 30s)
+            validate_security: Whether to validate SQL for dangerous operations
 
         Returns:
             Tuple of (column_names, rows)
+
+        Raises:
+            ValueError: If database not found or dangerous SQL detected
+            sqlite3.OperationalError: For semantic errors (wrong table/column)
+            sqlite3.Error: For syntax errors
+            TimeoutError: If query exceeds timeout
         """
+        # Security validation
+        if validate_security:
+            try:
+                sanitize_sql(query)
+            except ValueError as e:
+                raise ValueError(f"SQL security check failed: {e}")
+
         db_path = self.get_database_path(db_name)
         if not db_path:
             raise ValueError(f"Database not found: {db_name}")
 
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(db_path, timeout=timeout)
         cursor = conn.cursor()
 
         try:
@@ -139,6 +161,13 @@ class SpiderDatabase:
             )
             rows = cursor.fetchmany(max_rows)
             return columns, rows
+        except sqlite3.OperationalError as e:
+            # Classify operational errors
+            error_msg = str(e).lower()
+            if "timeout" in error_msg or "locked" in error_msg:
+                raise TimeoutError(f"Query timed out: {e}")
+            # Re-raise for semantic error handling (no such table/column)
+            raise
         finally:
             conn.close()
 
