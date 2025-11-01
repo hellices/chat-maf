@@ -9,7 +9,6 @@ from agent_framework import ChatMessage, Role, WorkflowContext, executor
 from agent_framework.azure import AzureOpenAIChatClient
 from azure.identity import AzureCliCredential
 
-from database.schema_cache import load_m_schema
 from database.spider_utils import SpiderDatabase
 from middleware import exception_handling_middleware, logging_middleware
 
@@ -40,25 +39,21 @@ async def schema_understanding(
     logger.info("=== 🗄️ Schema Understanding ===")
     logger.info(f"📨 Received message with status: {message.status}")
     logger.info(f"❓ Question: {message.question}")
-    
+
     # Get M-Schema from shared state
     m_schema = await ctx.get_shared_state(M_SCHEMA_CACHE_KEY)
-    
+
     # Prepare M-Schema for agent (simplified view)
     if message.database:
         # Case: Database pre-selected or retry with same database
         if message.database in m_schema:
             m_schema_for_agent = {
                 message.database: {
-                    "tables": list(
-                        m_schema[message.database].get("tables", {}).keys()
-                    )
+                    "tables": list(m_schema[message.database].get("tables", {}).keys())
                 }
             }
         else:
-            logger.warning(
-                f"⚠️ Selected database '{message.database}' not found"
-            )
+            logger.warning(f"⚠️ Selected database '{message.database}' not found")
             m_schema_for_agent = m_schema
     else:
         # Case: Search all databases
@@ -70,7 +65,7 @@ async def schema_understanding(
 
     # Create prompt
     m_schema_json = json.dumps(m_schema_for_agent, indent=2, ensure_ascii=False)
-    
+
     prompt = prompt_manager.get_schema_understanding_prompt(
         question=message.question,
         m_schema_json=m_schema_json,
@@ -101,22 +96,27 @@ async def schema_understanding(
         logger.error(f"❌ Failed to parse LLM response: {e}")
         logger.error(f"📄 Response text (first 500 chars): {response.text[:500]}")
         logger.error(f"📄 Response text (last 500 chars): {response.text[-500:]}")
-        
+
         # Try to extract database name manually as fallback
         import re
+
         db_match = re.search(r'"database":\s*"([^"]+)"', response.text)
         if db_match:
             database = db_match.group(1)
-            logger.warning(f"⚠️  Fallback: Extracted database '{database}' from partial response")
+            logger.warning(
+                f"⚠️  Fallback: Extracted database '{database}' from partial response"
+            )
             # Create minimal valid response
             parsed = SchemaMappingResponse(
                 database=database,
                 tables=[],
-                reasoning="Schema selection completed with partial response (JSON parsing failed)"
+                reasoning="Schema selection completed with partial response (JSON parsing failed)",
             )
         else:
             # Cannot recover - re-raise
-            raise ValueError(f"Failed to parse schema selection response: {e}\nResponse: {response.text[:1000]}...")
+            raise ValueError(
+                f"Failed to parse schema selection response: {e}\nResponse: {response.text[:1000]}..."
+            )
 
     database = parsed.database
     if not database:

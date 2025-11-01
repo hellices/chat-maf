@@ -212,52 +212,36 @@ async def nl2sql(request: NL2SQLRequest, req: Request):
                 selected_database=request.selected_database,
                 selected_tables=request.selected_tables,
             ):
-                # Convert WorkflowEvent to JSON
+                # Convert WorkflowEvent to JSON with minimal processing
                 event_type = event.__class__.__name__
-                event_data: dict[str, Any] = {
-                    "type": event_type,
-                    "timestamp": str(event),
-                }
+                event_data = {"type": event_type}
 
-                # Handle different event types from agent framework
+                # Add event attributes - based on step3_streaming.py
+                if hasattr(event, "origin"):
+                    origin = getattr(event, "origin")
+                    event_data["origin"] = origin.value
+
+                if hasattr(event, "state"):
+                    state = getattr(event, "state")
+                    event_data["state"] = state.name
+
                 if hasattr(event, "executor_id"):
                     executor_id = getattr(event, "executor_id")
                     event_data["executor_id"] = executor_id
-
-                    # Get executor info (label + category)
                     executor_info = executor_info_map.get(
                         executor_id, {"label": executor_id, "category": "other"}
-                    )
-
-                    event_data["step_name"] = (
-                        executor_id  # Keep original for compatibility
                     )
                     event_data["step_label"] = executor_info["label"]
                     event_data["step_category"] = executor_info["category"]
 
-                    logger.info(
-                        f"  → {executor_id} [{executor_info['category']}] → {executor_info['label']}"
-                    )
-
-                    # Extra debug for generate_natural_language_response
-                    if executor_id == "generate_natural_language_response":
-                        logger.info(
-                            f"  🔍 Sending NL Response event with label: {event_data['step_label']}"
-                        )
-
                 if hasattr(event, "data"):
                     data = getattr(event, "data")
-                    # WorkflowOutputEvent - contains final result
-                    if data and hasattr(data, "model_dump"):
+                    if hasattr(data, "model_dump"):
                         event_data["data"] = data.model_dump()
-                        logger.info(f"  → data type: {type(data).__name__}")
-                    elif isinstance(data, dict):
-                        event_data["data"] = data
                     elif data is not None:
-                        event_data["data"] = str(data)
+                        event_data["data"] = data
 
-                # Send as SSE format
-                logger.info(f"Sending SSE: {event_type}")
+                logger.info(f"Event: {event_type} {event_data.get('executor_id', '')}")
                 yield f"data: {json.dumps(event_data)}\n\n"
 
             # Send completion signal

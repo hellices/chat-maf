@@ -48,6 +48,13 @@ async def sql_generation(
     logger.info(f"📨 Received message with status: {message.status}")
     logger.info(f"🗄️  Database: {message.database}")
 
+    # Check if this is a retry with feedback
+    is_retry = message.status in ("SyntaxError", "SemanticError")
+    if is_retry:
+        logger.info("🔄 Retry attempt detected")
+        logger.info(f"💬 Previous error: {message.error_message}")
+        logger.info(f"📝 Previous SQL: {message.sql}")
+
     # Get schema context from shared state
     schema_id: str = await ctx.get_shared_state(CURRENT_SCHEMA_ID_KEY)
     schema_ctx_dict: dict = await ctx.get_shared_state(
@@ -55,12 +62,36 @@ async def sql_generation(
     )
     schema_ctx = SchemaContext(**schema_ctx_dict)
 
-    # Build SQL generation prompt
-    sql_prompt = prompt_manager.get_sql_generation_prompt(
-        question=message.question,
-        detailed_schema=schema_ctx.detailed_schema,
-        selected_tables=schema_ctx.selected_tables,
-    )
+    # Build SQL generation prompt with feedback if this is a retry
+    if is_retry and message.sql and message.error_message:
+        # Retry: Include previous attempt and error for LLM to learn from
+        if message.status == "SyntaxError":
+            # Syntax error: Use syntax correction prompt
+            sql_prompt = prompt_manager.get_syntax_error_correction_prompt(
+                question=message.question,
+                detailed_schema=schema_ctx.detailed_schema,
+                failed_sql=message.sql,
+                error_message=message.error_message,
+            )
+            logger.info("📋 Using SYNTAX correction prompt with feedback")
+        else:  # SemanticError
+            # Semantic error: This shouldn't happen in reflection pattern
+            # (semantic errors should go back to schema_understanding)
+            # But handle it as fallback
+            logger.warning("⚠️  Semantic error in sql_generation - using fallback")
+            sql_prompt = prompt_manager.get_sql_generation_prompt(
+                question=message.question,
+                detailed_schema=schema_ctx.detailed_schema,
+                selected_tables=schema_ctx.selected_tables,
+            )
+    else:
+        # Initial generation
+        sql_prompt = prompt_manager.get_sql_generation_prompt(
+            question=message.question,
+            detailed_schema=schema_ctx.detailed_schema,
+            selected_tables=schema_ctx.selected_tables,
+        )
+        logger.info("📋 Using initial SQL generation prompt")
 
     # Get system prompt
     system_prompt = prompt_manager.get_system_prompt("sql_generation")
@@ -93,7 +124,7 @@ async def sql_generation(
         sql_match = re.search(r'"sql":\s*"([^"]+)"', response.text)
         if sql_match:
             sql = sql_match.group(1)
-            logger.warning(f"⚠️  Fallback: Extracted SQL from partial response")
+            logger.warning("⚠️  Fallback: Extracted SQL from partial response")
             # Create minimal valid response
             parsed = SQLGenerationResponse(
                 sql=sql,
@@ -145,7 +176,7 @@ async def sql_generation(
             reasoning=parsed.reasoning,
         )
 
-        # Send to switch-case router
+        # Send to sql_reviewer (reflection pattern)
         await ctx.send_message(error_message)
         return
 
@@ -186,7 +217,7 @@ async def sql_generation(
             row_count=row_count,
         )
 
-        # Send to switch-case router
+        # Send to sql_reviewer (reflection pattern)
         await ctx.send_message(success_message)
 
     except sqlite3.OperationalError as e:
@@ -235,7 +266,7 @@ async def sql_generation(
                 execution_time_ms=execution_time,
             )
 
-        # Send to switch-case router
+        # Send to sql_reviewer (reflection pattern)
         await ctx.send_message(error_message)
 
     except TimeoutError:
@@ -256,7 +287,7 @@ async def sql_generation(
             execution_time_ms=execution_time,
         )
 
-        # Send to switch-case router
+        # Send to sql_reviewer (reflection pattern)
         await ctx.send_message(timeout_message)
 
     except Exception as e:
@@ -280,5 +311,5 @@ async def sql_generation(
             execution_time_ms=execution_time,
         )
 
-        # Send to switch-case router
+        # Send to sql_reviewer (reflection pattern)
         await ctx.send_message(error_message)

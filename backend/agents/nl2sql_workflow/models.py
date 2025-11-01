@@ -3,6 +3,8 @@ NL2SQL Data Models.
 Core models for workflow execution and routing.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any, Dict, List, Literal, Optional
 
@@ -36,26 +38,6 @@ class NL2SQLOutput(BaseModel):
     reasoning_evaluation: Optional[dict] = Field(
         None, description="Evaluation of the SQL generation reasoning"
     )
-
-
-class StepMetadata(BaseModel):
-    """
-    Metadata for each workflow step.
-    Sent to frontend for progress display.
-    """
-
-    executor_id: str = Field(..., description="Executor identifier")
-    summary: Optional[str] = Field(
-        default=None, description="Brief summary for frontend display"
-    )
-    database: Optional[str] = Field(default=None, description="Current database")
-    tables: Optional[list[str]] = Field(default=None, description="Selected tables")
-    sql: Optional[str] = Field(default=None, description="Generated or current SQL")
-    confidence: Optional[float] = Field(
-        default=None, description="Confidence score if applicable"
-    )
-    error: Optional[str] = Field(default=None, description="Error message if failed")
-    retry_count: Optional[int] = Field(default=None, description="Retry attempt number")
 
 
 # ===== Unified Workflow Message =====
@@ -108,7 +90,7 @@ class WorkflowMessage(BaseModel):
     )
 
     # === Metadata ===
-    retry_context: "RetryContext" = Field(
+    retry_context: RetryContext = Field(
         default_factory=lambda: RetryContext(),
         description="Retry counters (included for visibility)",
     )
@@ -152,38 +134,6 @@ class WorkflowMessage(BaseModel):
     def can_retry_semantic(self) -> bool:
         """Check if we can retry schema re-analysis."""
         return self.retry_context.can_retry_semantic()
-
-
-# ===== Legacy model (deprecated - use WorkflowMessage) =====
-
-
-class ExecutionResult(BaseModel):
-    """
-    DEPRECATED: Use WorkflowMessage instead.
-
-    SQL execution result for switch-case routing.
-    Kept for backward compatibility during migration.
-    """
-
-    status: Literal["Success", "SyntaxError", "SemanticError", "EmptyResult", "Timeout"]
-    sql: str
-    database: str
-    error_message: Optional[str] = None
-    result_rows: Optional[List[Dict[str, Any]]] = None
-    execution_time_ms: float = 0.0
-    row_count: int = 0
-
-    def is_success(self) -> bool:
-        """Check if execution was successful."""
-        return self.status == "Success"
-
-    def needs_schema_refinement(self) -> bool:
-        """Check if error requires schema re-analysis."""
-        return self.status == "SemanticError"
-
-    def needs_sql_refinement(self) -> bool:
-        """Check if error can be fixed by SQL correction only."""
-        return self.status == "SyntaxError"
 
 
 class RetryContext(BaseModel):

@@ -7,112 +7,62 @@ import { z } from 'zod';
 
 // ===== Zod Schemas for Runtime Validation =====
 
-// Agent Framework Events (from backend)
-const WorkflowStatusEventSchema = z.object({
-	type: z.literal('WorkflowStatusEvent'),
-	timestamp: z.string(),
+// Base event - all events have at least a type
+const BaseEventSchema = z.object({
+	type: z.string(),
+	origin: z.string().optional(), // RUNNER or EXECUTOR
+	state: z.string().optional(), // WorkflowRunState
 	executor_id: z.string().optional(),
-	step_name: z.string().optional(),
 	step_label: z.string().optional(),
-	step_category: z.string().optional(),
-	data: z.any().optional()
+	step_category: z.string().optional()
 });
 
-const ExecutorInvokedEventSchema = z.object({
-	type: z.literal('ExecutorInvokedEvent'),
-	timestamp: z.string(),
-	executor_id: z.string(),
-	step_name: z.string(),
-	step_label: z.string().optional(),
-	step_category: z.string().optional(),
-	data: z.any().optional()
-});
-
-const ExecutorCompletedEventSchema = z.object({
-	type: z.literal('ExecutorCompletedEvent'),
-	timestamp: z.string(),
-	executor_id: z.string(),
-	step_name: z.string(),
-	step_label: z.string().optional(),
-	step_category: z.string().optional(),
-	data: z.any().optional()
-});
-
-const AgentRunUpdateEventSchema = z.object({
-	type: z.literal('AgentRunUpdateEvent'),
-	timestamp: z.string(),
-	executor_id: z.string(),
-	step_name: z.string(),
-	step_label: z.string().optional(),
-	step_category: z.string().optional(),
-	data: z.string().optional()
-});
-
+// Workflow output - the final result
 const WorkflowOutputEventSchema = z.object({
 	type: z.literal('WorkflowOutputEvent'),
-	timestamp: z.string(),
-	executor_id: z.string().optional(),
-	step_name: z.string().optional(),
 	data: z.object({
 		sql: z.string(),
 		database: z.string(),
 		execution_result: z.any(),
 		natural_language_response: z.string().nullable().optional(),
-		reasoning_evaluation: z.object({
-			is_correct: z.boolean().nullable(),
-			confidence: z.number(),
-			explanation: z.string(),
-			suggestions: z.string()
-		}).nullable().optional()
+		reasoning_evaluation: z
+			.object({
+				is_correct: z.boolean().nullable(),
+				confidence: z.number(),
+				explanation: z.string(),
+				suggestions: z.string()
+			})
+			.nullable()
+			.optional()
 	})
-});
-
-// Legacy progress event (keep for backwards compatibility)
-const NL2SQLProgressEventSchema = z.object({
-	type: z.literal('progress'),
-	executor_id: z.string(),
-	data: z
-		.object({
-			summary: z.string().optional()
-		})
-		.optional()
 });
 
 // Completion signal
 const CompletionEventSchema = z.object({
-	status: z.literal('completed'),
-	type: z.string().optional()
+	status: z.literal('completed')
 });
 
 // Error event
-const NL2SQLErrorEventSchema = z.object({
+const ErrorEventSchema = z.object({
 	status: z.literal('error'),
-	type: z.string().optional(),
 	error: z.string().optional(),
 	message: z.string().optional()
 });
 
+// Union of all events - use discriminated union for specific events, passthrough for others
 const NL2SQLEventSchema = z.union([
-	WorkflowStatusEventSchema,
-	ExecutorInvokedEventSchema,
-	ExecutorCompletedEventSchema,
-	AgentRunUpdateEventSchema,
 	WorkflowOutputEventSchema,
-	NL2SQLProgressEventSchema,
 	CompletionEventSchema,
-	NL2SQLErrorEventSchema
+	ErrorEventSchema,
+	BaseEventSchema.passthrough() // Accept any other event with additional fields
 ]);
 
 // ===== TypeScript Types =====
 
-export type WorkflowStatusEvent = z.infer<typeof WorkflowStatusEventSchema>;
-export type ExecutorInvokedEvent = z.infer<typeof ExecutorInvokedEventSchema>;
-export type ExecutorCompletedEvent = z.infer<typeof ExecutorCompletedEventSchema>;
-export type AgentRunUpdateEvent = z.infer<typeof AgentRunUpdateEventSchema>;
+export type BaseEvent = z.infer<typeof BaseEventSchema>;
 export type WorkflowOutputEvent = z.infer<typeof WorkflowOutputEventSchema>;
-export type NL2SQLProgressEvent = z.infer<typeof NL2SQLProgressEventSchema>;
 export type CompletionEvent = z.infer<typeof CompletionEventSchema>;
-export type NL2SQLErrorEvent = z.infer<typeof NL2SQLErrorEventSchema>;
+export type ErrorEvent = z.infer<typeof ErrorEventSchema>;
 export type NL2SQLEvent = z.infer<typeof NL2SQLEventSchema>;
 
 export interface NL2SQLQueryParams {
@@ -178,8 +128,10 @@ export class NL2SQLApiService {
 						const jsonStr = line.substring(6).trim();
 						if (!jsonStr) continue;
 
-						// Parse and validate with Zod
+						// Parse JSON
 						const rawData = JSON.parse(jsonStr);
+						
+						// Validate with Zod (but allow unknown fields to pass through)
 						const eventData = NL2SQLEventSchema.parse(rawData);
 
 						// Yield the event
@@ -190,13 +142,9 @@ export class NL2SQLApiService {
 							return;
 						}
 					} catch (e) {
-						if (e instanceof z.ZodError) {
-							console.warn('Event validation failed (ignoring):', e.issues);
-							console.warn('Problematic line:', line);
-						} else {
-							console.error('Parse error:', e);
-							console.error('Problematic line:', line);
-						}
+						// Log but continue - don't break the stream
+						console.warn('Event parse/validation error:', e);
+						console.warn('Problematic line:', line);
 					}
 				}
 			}

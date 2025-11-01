@@ -8,39 +8,34 @@ Organized by workflow stage:
 - initialization: Workflow setup and context initialization
 - schema_selection: Schema understanding (LLM + processing)
 - sql_generation: SQL generation (LLM + processing + execution)
-- success: Success handling with fan-out/fan-in pattern
-- errors: Error handling with retry logic
+- sql_reviewer: SQL quality review with reflection pattern
+- handle_success: Success handler (fan-out dispatcher)
+- evaluate_reasoning: Reasoning evaluation (parallel)
+- generate_nl_response: NL response generation (parallel)
+- aggregate_results: Result aggregation (fan-in)
 """
 
-from .errors import (
-    handle_execution_issue,
-    handle_semantic_error,
-    handle_syntax_error,
-)
+from .aggregate_results import aggregate_success_results
+from .evaluate_reasoning import evaluate_sql_reasoning
+from .generate_nl_response import generate_natural_language_response
+from .handle_success import handle_success
 from .initialization import initialize_context
 from .schema_selection import schema_understanding
 from .sql_generation import sql_generation
-from .success import (
-    aggregate_success_results,
-    evaluate_sql_reasoning,
-    generate_natural_language_response,
-    handle_success,
-)
+from .sql_reviewer import sql_reviewer
 
 __all__ = [
     # Initialization
     "initialize_context",
-    # Schema Understanding (unified executor)
+    # Schema Understanding
     "schema_understanding",
-    # SQL Generation (unified executor)
+    # SQL Generation (Worker in reflection pattern)
     "sql_generation",
-    # Success Handlers (with fan-out/fan-in)
+    # SQL Reviewer (Reviewer in reflection pattern)
+    "sql_reviewer",
+    # Success Handlers (fan-out/fan-in pattern)
     "handle_success",
     "evaluate_sql_reasoning",
     "generate_natural_language_response",
     "aggregate_success_results",
-    # Error Handlers
-    "handle_syntax_error",
-    "handle_semantic_error",
-    "handle_execution_issue",
 ]

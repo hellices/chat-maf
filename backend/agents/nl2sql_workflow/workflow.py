@@ -1,122 +1,61 @@
-"""
-NL2SQL Workflow - Agent-centric architecture with switch-case routing.
+from typing import Optional
 
-Based on Microsoft Agent Framework patterns:
-- shared_states_with_agents.py: Shared state management
-- switch_case_edge_group.py: Conditional routing with multiple branches
-- Simple @executor functions (no classes) for stateless executors
-
-Key improvements:
-- Executors handle both LLM calls and processing (no separate parse steps)
-- Consistent @executor function pattern (no unnecessary classes)
-- Clear separation of concerns (schema understanding vs SQL generation)
-- Retry logic handled via switch-case routing
-- Shared state for large payloads (schema, candidates)
-"""
-
-from typing import Any, Optional
-
-from agent_framework import Case, Default, WorkflowBuilder
+from agent_framework import WorkflowBuilder
 
 from .executors import (
     aggregate_success_results,
     evaluate_sql_reasoning,
     generate_natural_language_response,
-    handle_execution_issue,
-    handle_semantic_error,
     handle_success,
-    handle_syntax_error,
     initialize_context,
     schema_understanding,
     sql_generation,
+    sql_reviewer,
 )
 from .models import (
     NL2SQLInput,
-    WorkflowMessage,
 )
-
-
-def get_execution_status_condition(expected_status: str):
-    """
-    Create a condition predicate for WorkflowMessage.status.
-    Used in switch-case routing to filter execution results by status.
-    """
-
-    def condition(message: Any) -> bool:
-        if not isinstance(message, WorkflowMessage):
-            return True
-        return message.status == expected_status
-
-    return condition
 
 
 def build_nl2sql_workflow():
     """
-    Build the NL2SQL workflow with switch-case routing and fan-out/fan-in parallelism.
+    Build the NL2SQL workflow with reflection pattern for iterative improvement.
 
-    Workflow structure:
+    Workflow structure (Reflection Pattern - from workflow_as_agent_reflection_pattern.py):
     1. initialize_context (function executor)
     2. schema_understanding (function executor: LLM call + processing)
-    3. sql_generation (function executor: LLM call + processing + execution)
-    4. SWITCH (WorkflowMessage.status):
-        - Success -> handle_success -> FAN-OUT:
-            ├─ evaluate_sql_reasoning ────┐
-            └─ generate_natural_language_response ─┴─> FAN-IN: aggregate_success_results (terminal)
-        - SyntaxError -> handle_syntax_error -> loop to sql_generation
-        - SemanticError -> handle_semantic_error -> loop to schema_understanding
-        - Default (EmptyResult, Timeout) -> handle_execution_issue (terminal)
+    3. sql_generation (Worker) ↔ sql_reviewer (Reviewer)
+       - sql_generation generates SQL and sends to reviewer
+       - sql_reviewer evaluates SQL quality
+       - If approved → handle_success (terminal)
+       - If not approved → sends feedback back to sql_generation for retry
+    4. handle_success → FAN-OUT:
+        ├─ evaluate_sql_reasoning ────┐
+        └─ generate_natural_language_response ─┴─> FAN-IN: aggregate_success_results (terminal)
 
-    Fan-out/Fan-in pattern:
-    - Fan-out: Dispatches WorkflowMessage to multiple executors in parallel
-    - Fan-in: Collects results from parallel executors as a list and aggregates them
-
-    All executors use simple @executor function pattern for consistency.
-    No classes needed since executors don't maintain state across invocations.
-
-    Message passing:
-    - All executors send/receive WorkflowMessage for unified interface
-    - Large payloads (schema, m_schema) stored in shared state, referenced by ID
-    - Retry context included in message for visibility
+    Reflection Pattern Benefits:
+    - Cleaner retry logic: Worker-Reviewer bidirectional cycle
+    - Self-correcting: SQL is iteratively improved based on feedback
+    - Max retries enforced by Reviewer (no separate error handlers needed)
+    - Approved results automatically proceed to success path
 
     Based on Microsoft Agent Framework patterns:
+    - workflow_as_agent_reflection_pattern.py: Worker ↔ Reviewer cycle
     - aggregate_results_of_different_types.py: Fan-out/fan-in for parallel execution
     """
 
-    # Build workflow
-    # NOTE: Cycle warning is expected and safe here.
-    # The workflow contains retry loops:
-    #   - handle_syntax_error -> sql_generation (for SQL fixes)
-    #   - handle_semantic_error -> schema_understanding (for schema re-analysis)
-    # These loops are terminated by:
-    #   1. Max retry limits enforced in executors (syntax: 2, semantic: 2)
-    #   2. yield_output() calls in executors when limits are reached
-    # See: handle_syntax_error and handle_semantic_error for termination logic
+    # Build workflow with reflection pattern
     workflow = (
         WorkflowBuilder()
         .set_start_executor(initialize_context)
         .add_edge(initialize_context, schema_understanding)
         .add_edge(schema_understanding, sql_generation)
-        # Switch-case routing based on execution result
-        .add_switch_case_edge_group(
-            sql_generation,
-            [
-                Case(
-                    condition=get_execution_status_condition("Success"),
-                    target=handle_success,
-                ),
-                Case(
-                    condition=get_execution_status_condition("SyntaxError"),
-                    target=handle_syntax_error,
-                ),
-                Case(
-                    condition=get_execution_status_condition("SemanticError"),
-                    target=handle_semantic_error,
-                ),
-                Default(target=handle_execution_issue),
-            ],
-        )
+        # Reflection cycle: SQL Generation (Worker) ↔ SQL Reviewer
+        .add_edge(sql_generation, sql_reviewer)  # Worker → Reviewer
+        .add_edge(sql_reviewer, sql_generation)  # Reviewer → Worker (feedback)
+        # Success path: Reviewer approves → handle_success
+        .add_edge(sql_reviewer, handle_success)
         # Fan-out: Parallel execution for success case
-        # Both executors run in parallel from handle_success
         .add_fan_out_edges(
             handle_success,
             [evaluate_sql_reasoning, generate_natural_language_response],
@@ -126,9 +65,6 @@ def build_nl2sql_workflow():
             [evaluate_sql_reasoning, generate_natural_language_response],
             aggregate_success_results,
         )
-        # Retry loops (terminated by max retry limits in executors)
-        .add_edge(handle_syntax_error, sql_generation)  # Max 2 syntax retries
-        .add_edge(handle_semantic_error, schema_understanding)  # Max 2 semantic retries
         .build()
     )
 

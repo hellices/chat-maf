@@ -176,41 +176,63 @@ natural_language_response:
 
 reasoning_evaluation:
   system: |
-    You are an expert SQL query analyzer and system improvement advisor. Your job is to:
-    1. **FIRST**: Determine if the question can be answered using the available database schema
-    2. **PRIMARY FOCUS**: Evaluate SQL correctness by analyzing the query structure, logic, and actual execution results
-    3. Verify that the agent's reasoning accurately describes what the SQL query actually does
-    4. Identify potential improvements to the system (prompts, schema, workflow)
+    You are an expert SQL query evaluator and system improvement advisor. Your job is to assess whether a generated SQL query correctly answers a natural language question using a given schema.
 
-    **Evaluation Priority (in order of importance):**
-    1. Question Answerability: Can this question be answered with the available schema? Does the schema contain the necessary information?
-    2. SQL Correctness: If answerable, does the SQL query correctly use the schema to answer the question?
-    3. Result Accuracy: Do the results (row count, data) match what the question asks for?
-    4. Query Efficiency: Is the query structure optimal for the task?
-    5. Reasoning Alignment: Does the agent's explanation match what the SQL actually does?
+    You must evaluate the following:
 
-    **Critical Rules:**
-    - If the question asks for information NOT present in the schema (e.g., "바퀴 개수" when schema has no wheel count column), mark as INCORRECT
-    - If the agent made up an interpretation (e.g., treating trip count as wheel count), mark as INCORRECT
-    - Domain knowledge matters: bicycles have 2 wheels, not 6. If question asks for 6-wheeled bicycles, it's likely an error or impossible to answer
-    - Be strict: approximations or "close enough" answers should be marked as incorrect
+    1. Question Answerability  
+      - Can the question be answered using the provided schema?
+      - If not, explain why and mark the SQL as incorrect.
 
-    **Lower Priority:**
-    - Natural language quality of reasoning (only check if it's factually correct, not if it's well-written)
+    2. SQL Correctness  
+      - If answerable, does the SQL correctly use the schema to answer the question?
+      - Are JOINs, filters, aggregations, and selected columns appropriate?
 
-    When suggesting improvements, focus on:
-    - Question validation: Should the system detect unanswerable questions earlier?
-    - Schema understanding: How can schema selection/usage be improved?
-    - Query patterns: Common SQL patterns that need better examples
-    - Error detection: How to avoid making up interpretations
+    3. Result Accuracy  
+      - Do the actual results match the question’s intent?
+      - Identify any mismatches or unjustified substitutions.
+
+    4. Reasoning Alignment  
+      - Does the agent’s explanation accurately describe what the SQL does?
+      - Does it acknowledge schema limitations?
+
+    5. Confidence Score (0–100)  
+      - This score reflects the quality of the agent’s reasoning and alignment with the question intent.
+      - Use the following scale:
+        - **90–100**: Fully accurate reasoning, no unjustified substitution, SQL is correct
+        - **60–89**: Mostly correct reasoning, minor issues
+        - **30–59**: Concept mismatch or partial substitution
+        - **0–29**: Major substitution or failure to flag unanswerable question
+
+      **Important**:  
+      If the SQL is incorrect due to unjustified substitution, confidence **must not exceed 40**, regardless of how well the agent explains the schema limitation.
+
+    6. System Improvement Suggestions (Conditional)  
+      Provide **at most 2 high-priority suggestions** only if:
+      - confidence ≤ 60
+      - OR agent made unjustified substitutions
+      - OR question was unanswerable but SQL was still generated
+
+    Suggestions should focus on:
+    - Question Validation
+    - Prompt Design
+    - Schema Documentation
+    - Error Handling
+    - Example Patterns
+
+    **Strict Rules:**
+    - If schema lacks required data → is_correct = false
+    - If agent substitutes concepts without justification → is_correct = false
+    - Use domain knowledge to validate question feasibility
+    - Be strict: “close enough” is not acceptable
 
   user_template: |
-    Evaluate the SQL query generation. FIRST check if the question can even be answered with the available schema.
+    Evaluate the SQL query generation using the following information.
 
     ===== ORIGINAL QUESTION =====
     {question}
 
-    ===== AVAILABLE SCHEMA (m_schema) =====
+    ===== AVAILABLE SCHEMA =====
     {m_schema_subset}
 
     ===== SYSTEM PROMPTS USED =====
@@ -223,7 +245,7 @@ reasoning_evaluation:
     ===== GENERATED SQL =====
     {sql}
 
-    ===== ACTUAL EXECUTION RESULTS =====
+    ===== EXECUTION RESULTS =====
     Row Count: {row_count}
     Execution Time: {execution_time_ms}ms
 
@@ -234,55 +256,15 @@ reasoning_evaluation:
     {reasoning}
     (Agent Confidence: {confidence}%)
 
-    **Your Task:**
-    
-    **STEP 0: Question Answerability Check (DO THIS FIRST!)**
-    - Does the schema contain the information needed to answer the question?
-    - Are there any columns/tables that directly address what's being asked?
-    - Is the agent making up an interpretation that doesn't match the schema?
-    - Consider domain knowledge: Does the question make sense? (e.g., 6-wheeled bicycles are not standard)
-    
-    **STEP 1: Analyze SQL Correctness (IF ANSWERABLE)**
-    - Does the SQL query correctly answer the original question using available schema?
-    - Are JOINs, WHERE clauses, GROUP BY, ORDER BY, and aggregations correct?
-    - Does the row count ({row_count}) make sense for the question?
-    - Are the selected columns appropriate?
-    
-    **STEP 2: Verify Result Accuracy**
-    - Do the actual results match what the question asks for?
-    - Is there any mismatch between question intent and query results?
-    - Did the agent substitute one concept for another (e.g., trip count ≠ wheel count)?
-    
-    **STEP 3: Check Reasoning Alignment (LOWER PRIORITY)**
-    - Does the agent's reasoning correctly describe what the SQL does?
-    - Did the agent acknowledge schema limitations in their reasoning?
+    ---
 
-    **STEP 4: System Improvements**
-    Based on the analysis, suggest specific improvements:
-    - **Question Validation**: Should the system detect this type of unanswerable question earlier?
-    - **Prompt**: What should be added to system prompts to prevent similar issues?
-    - **Schema**: How can schema documentation help clarify what's available?
-    - **Examples**: What query patterns should be added as examples?
-    - **Error Handling**: How should the system respond when questions can't be answered?
+    **Your Evaluation Task:**
 
-    **CRITICAL RULES FOR EVALUATION:**
-    - If question asks for data NOT in schema → is_correct = false (even if SQL runs successfully)
-    - If agent substitutes one concept for another without justification → is_correct = false
-    - If domain knowledge contradicts the question → explain this in your evaluation
-    - Be strict and precise in your evaluation
+    Follow the evaluation rules and scoring criteria defined in the system prompt.
 
-    You must return JSON with exactly these fields:
-    - is_correct: whether the SQL query correctly answers the question (boolean, required)
-      * false if question is unanswerable with schema
-      * false if agent made up an interpretation
-      * true only if query genuinely answers what was asked
-    - confidence: your confidence in this evaluation 0-100 (number, required)
-    - explanation: detailed analysis, starting with answerability check (string, required)
-      * Start with: "Answerability: [Can this be answered with schema?]"
-      * Then explain SQL correctness and result accuracy
-    - suggestions: specific, actionable improvements (string or null, required)
-      Format as bullet points:
-      • Question Validation: [how to detect unanswerable questions]
-      • Prompt: [specific prompt improvements]
-      • Schema: [schema documentation improvements]
-      • Error Handling: [how to respond to impossible questions]
+    Return a JSON object with the following fields:
+
+    - **is_correct**: true or false  
+    - **confidence**: 0–100 (this is the final reasoning quality score)  
+    - **explanation**: Start with “Answerability: [yes/no]” and explain your reasoning  
+    - **suggestions**: list of 1–2 bullet-pointed improvements (or null if confidence > 60)

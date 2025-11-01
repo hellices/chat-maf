@@ -78,63 +78,67 @@
 				selected_database: $store.selectedDatabase,
 				selected_tables: $store.selectedTables.length > 0 ? $store.selectedTables : undefined
 			})) {
-				if ('type' in event) {
-					switch (event.type) {
-					case 'WorkflowStatusEvent':
-					case 'ExecutorInvokedEvent':
-						if ('step_name' in event && event.step_name) {
-							const stepDisplay = 'step_label' in event ? event.step_label : getStepDisplay(event.step_name);
-							const stepCategory = 'step_category' in event ? event.step_category : undefined;
-							store.setCurrentStep(stepDisplay);
-								
-							if (event.type === 'ExecutorInvokedEvent' && 'data' in event && event.data) {
-								const content = typeof event.data === 'string' ? event.data.trim() : event.data;
-								if (content && content !== '') {
-									store.addStreamingLog(event.step_name, stepDisplay, content, stepCategory);
-								}
-							}
-								
-							await scrollToBottom(chatContainerEl);
-						}
-						break;
-
-					case 'AgentRunUpdateEvent':
-						if ('data' in event && event.data && 'step_name' in event && event.step_name) {
-							const content = typeof event.data === 'string' ? event.data.trim() : event.data;
-							if (content && content !== '') {
-								const stepDisplay = 'step_label' in event ? event.step_label : getStepDisplay(event.step_name);
-								const stepCategory = 'step_category' in event ? event.step_category : undefined;
-								store.addStreamingLog(event.step_name, stepDisplay, content, stepCategory);
-								store.setCurrentStep(stepDisplay);
-								await scrollToBottom(chatContainerEl);
-							}
-						}
-						break;
-
-					case 'WorkflowOutputEvent':
-						if ('data' in event) {
-							finalResult = event.data;
-						}
-						break;
-
-					case 'progress':
-						if ('executor_id' in event && event.executor_id) {
-							const stepDisplay = 'step_label' in event 
-								? event.step_label 
-								: getStepDisplay(event.executor_id, event.data?.summary);
-							store.setCurrentStep(stepDisplay);
-							await scrollToBottom(chatContainerEl);
-						}
+				// Handle completion/error status
+				if ('status' in event) {
+					if (event.status === 'error') {
+						const errorMsg = ('error' in event && typeof event.error === 'string') 
+							? event.error 
+							: ('message' in event && typeof event.message === 'string') 
+								? event.message 
+								: 'Unknown error';
+						throw new Error(errorMsg);
+					}
+					if (event.status === 'completed') {
 						break;
 					}
 				}
 
-				if ('status' in event && event.status === 'error') {
-					throw new Error(event.error || event.message || 'Unknown error');
+				// Handle workflow output (final result)
+				if ('type' in event && event.type === 'WorkflowOutputEvent' && 'data' in event) {
+					finalResult = event.data;
+					continue;
 				}
 
-				if ('status' in event && event.status === 'completed') {
-					break;
+				// Handle executor events (show progress)
+				if ('executor_id' in event && event.executor_id) {
+					const stepDisplay = ('step_label' in event && typeof event.step_label === 'string') 
+						? event.step_label 
+						: event.executor_id;
+					const stepCategory = ('step_category' in event && typeof event.step_category === 'string') 
+						? event.step_category 
+						: undefined;
+					
+					// Log event details for debugging
+					console.log(`[${event.type}]`, {
+						executor: event.executor_id,
+						origin: 'origin' in event ? event.origin : undefined,
+						state: 'state' in event ? event.state : undefined
+					});
+
+					// Update UI
+					store.setCurrentStep(stepDisplay);
+
+					// Add streaming log if there's data
+					if ('data' in event && event.data) {
+						const content = typeof event.data === 'string' ? event.data.trim() : event.data;
+						if (content && content !== '') {
+							store.addStreamingLog(
+								event.executor_id, 
+								stepDisplay, 
+								typeof content === 'string' ? content : JSON.stringify(content), 
+								stepCategory
+							);
+						}
+					}
+
+					await scrollToBottom(chatContainerEl);
+				}
+
+				// Handle error events
+				if ('type' in event && (event.type === 'ExecutorFailedEvent' || event.type === 'WorkflowFailedEvent')) {
+					const errorMsg = (event as any).error_message || (event as any).message || 'Workflow failed';
+					console.error(`[${event.type}]`, errorMsg);
+					throw new Error(errorMsg);
 				}
 			}
 
